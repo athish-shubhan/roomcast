@@ -1,0 +1,28 @@
+{
+  "published": {
+    "auction": 326,
+    "battle": 609,
+    "comment": 18141,
+    "gift": 7525,
+    "moderation": 43
+  },
+  "auction_final": {
+    "0": {
+      "1": 8131
+    }
+  },
+  "battle_final": {
+    "0": {
+      "0": 15794,
+      "1": 15657
+    }
+  },
+  "modseq_final": {
+    "0": 43
+  },
+  "sent_bytes": 2314084,
+  "ticks_dropped_slow_edge": 0,
+  "start_unix_nano": 1793239706642095951,
+  "burst_at_sec": 25,
+  "burst_len_sec": 10
+}

@@ -1,0 +1,5 @@
+bin/
+*.test
+results/edge-*.log
+results/job.log
+results/load*.log
