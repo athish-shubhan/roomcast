@@ -68,7 +68,7 @@ All three share the same queue, policy, snapshots, admission and job link, so th
 
 `ulimit -n 1048576`; `net.core.somaxconn=65535`; `net.ipv4.tcp_max_syn_backlog=65535`; `net.ipv4.ip_local_port_range="10000 65000"`. Viewers bind to 127.0.0.2 to 127.0.0.9 with `IP_BIND_ADDRESS_NO_PORT`, so ports are chosen per 4-tuple and one machine can open more connections than one source IP's port range.
 
-## 9. Interview defence notes
+## 9. Design notes
 
 - *How does the Go netpoller work?* Network fds are non-blocking and registered with epoll (edge-triggered) by the runtime. A goroutine whose read would block is parked; `netpoll` is called by the scheduler (in `findrunnable` and by sysmon) and makes ready goroutines runnable. Blocking-style code, event-driven underneath.
 - *Why does goroutine-per-connection cost memory?* Each goroutine has its own stack (starting at 2 KiB, grown by copying, rarely shrunk below what it reached) plus whatever buffers its code allocates per connection (bufio readers and writers are 4 KiB each by default). With two goroutines per connection, idle connections pay twice. An event loop keeps the per-connection state to a struct and borrows buffers from the loop.

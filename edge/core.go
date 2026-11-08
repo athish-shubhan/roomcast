@@ -526,7 +526,12 @@ func (c *Core) serveStats() {
 		runtime.GC()
 		w.Write([]byte("ok\n"))
 	})
-	go http.ListenAndServe(c.cfg.Stats, mux)
+	go func() {
+		srv := &http.Server{Addr: c.cfg.Stats, Handler: mux, ReadHeaderTimeout: 10 * time.Second}
+		if err := srv.ListenAndServe(); err != nil {
+			log.Printf("stats server: %v", err)
+		}
+	}()
 }
 
 // Run starts the edge and blocks.

@@ -2,7 +2,7 @@
 
 A hot-room fan-out gateway in Go for live-room events (comments, gifts, battle scores, auction bids, moderation). Viewer connections live on edges; a job tier publishes each room event once per edge; edges fan out with a per-viewer, class-aware queue that drops comments before gift combos and never drops auction bids, battle scores or moderation deletes. Three edge builds share everything except the connection model: the standard library's goroutine-per-connection design, an epoll event loop written for this project, and CloudWeGo Netpoll, the event-loop library ByteDance built for this problem. The results below compare std and epoll; the Netpoll build passes the same transport test and is wired into `bench/run_all.sh`, but has not been benchmarked yet.
 
-## Results (measured on one 2-vCPU VM)
+## Results (measured on one 2-vCPU VM; two runs per configuration at most, so ranges rather than confidence intervals)
 
 Full tables: [`results/SUMMARY.md`](results/SUMMARY.md). Design and the degradation policy: [`docs/DESIGN.md`](docs/DESIGN.md). The edge runs pinned to one vCPU (`GOMAXPROCS=1`, `taskset -c 0`); publisher and viewer fleet share the other.
 
@@ -58,22 +58,15 @@ bench/run_all.sh     # about 35 minutes with the netpoll arms; writes results/me
 go test -race ./...
 ```
 
+Linux only: the epoll transport and `/proc` CPU accounting do not build on macOS or Windows (develop in a Linux VM or container).
+
 ## What is not here
 
 - **Connections per 8-vCPU / 32 GB box**: not measured. This VM allows 20,000 file descriptors per process, so one edge was tested up to 18,000 connections, and viewers, publisher and edge share two vCPUs. The per-connection numbers above are what scale; the ceiling on a real box is kernel socket memory and fan-out CPU, not the edge's heap.
+- **Security**: no authentication or TLS on the viewer, job or stats ports; everything binds to 127.0.0.1 by default. Do not expose them as is.
 - **Kafka**: the job tier generates events itself; in production it would consume them from Kafka (or the single-writer log from HotLedger). The edge-facing protocol is the same.
 - **WebSocket and TLS**: raw TCP framing. WebSocket adds a per-message header and TLS adds per-connection state and CPU; neither changes the comparison between connection models.
 - **Netpoll measurements**: `edge/netpoll.go` (Netpoll v0.7.0: Netpoll's pollers own the sockets, no goroutine per idle connection, one flusher goroutine per connection only while it has data) is built and tested, and `bench/run_all.sh` has netpoll arms for every experiment, but the 35-minute run that would put it in the tables was not done. Do not quote Netpoll numbers.
 - **gnet** and a Hertz/WebSocket front end: not built; all builds speak raw TCP.
 - **Multi-machine latency**: publisher, edge and viewers share one clock; across machines this needs synchronised clocks or echoed timestamps.
 - The effect of a reconnect storm on the surviving edge's existing viewers was not consistent across runs (auction p99 in the 10 s after the kill varied from 63 to 224 ms in either policy), so no claim is made about it.
-
-## Resume bullets (numbers from `results/`)
-
-- Built RoomCast, a Go live-room fan-out gateway (edge / job tiers, per-room sequence numbers with gap repair, class-aware per-viewer queues: auction bids and battle scores coalesced but never dropped, gift combos aggregated, comments sampled) with goroutine-per-connection and from-scratch epoll event-loop edge builds (plus a CloudWeGo Netpoll build, not yet benchmarked).
-- The event-loop edge held 18,000 connections at 0.5 KiB each (12x less than goroutine-per-connection) and, under a 10x battle-end burst to 16,000 viewers, kept 100% of auction events within a 200 ms SLO (p99 79 to 89 ms) at 32 to 43% less CPU per delivered message.
-- After killing an edge holding 8,000 viewers, all reconnected and resynced within 3.2 s with zero lost auction state, and jittered backoff with server retry hints cut refused connection attempts by 74%.
-
-## Interview defence
-
-See `docs/DESIGN.md` section 9 (the Go netpoller, why goroutine-per-connection costs memory, head-of-line blocking, ordering per room). Also be ready for: why the writes are coalesced (syscalls per frame), why kernel buffers are kept small (priority only works on bytes still in your queue), and why admission sheds new connections before existing viewers degrade.
